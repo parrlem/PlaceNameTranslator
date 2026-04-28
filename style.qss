@@ -116,7 +116,6 @@ QComboBox::drop-down {
     background: transparent;
 }
 
-/* 替换原生丑陋的黑色小三角，使用现代风格的灰色向下箭头 (内嵌 Base64 SVG) */
 QComboBox::down-arrow {
     image: url(./images/angle-down.svg);
     width: 16px;

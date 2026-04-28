@@ -1,3 +1,8 @@
+"""
+地名翻译助手 - 基于 DeepSeek API 的地名翻译工具
+严格遵循《地名管理条例实施办法》与《外语地名汉字译写导则 英语》
+"""
+
 import sys
 import json
 from pathlib import Path
@@ -10,7 +15,7 @@ from openai.types.chat import (
 )
 
 from PySide6.QtCore import Qt, QSettings, QTimer, Signal, QThread
-from PySide6.QtGui import QClipboard, QFont, QCursor
+from PySide6.QtGui import QClipboard
 from PySide6.QtWidgets import (
     QApplication,
     QMainWindow,
