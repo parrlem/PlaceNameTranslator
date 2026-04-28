@@ -5,6 +5,8 @@
 
 import sys
 import json
+import platform
+import ctypes
 from pathlib import Path
 from typing import cast
 
@@ -14,8 +16,8 @@ from openai.types.chat import (
     ChatCompletionUserMessageParam,
 )
 
-from PySide6.QtCore import Qt, QSettings, QTimer, Signal, QThread
-from PySide6.QtGui import QClipboard
+from PySide6.QtCore import Qt, QSettings, QTimer, Signal, QThread, QSize
+from PySide6.QtGui import QClipboard, QIcon
 from PySide6.QtWidgets import (
     QApplication,
     QMainWindow,
@@ -35,6 +37,21 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QGraphicsDropShadowEffect,
 )
+
+
+def get_resource_path(relative_path: str) -> Path:
+    """
+    获取资源的绝对路径。
+    兼容开发环境（脚本运行）与 PyInstaller 打包后的环境（_MEIPASS临时目录）。
+    """
+    if hasattr(sys, "_MEIPASS"):
+        # PyInstaller 打包后的执行环境
+        base_path = Path(sys._MEIPASS)  # pyright: ignore[reportAttributeAccessIssue]
+    else:
+        # 开发环境
+        base_path = Path(__file__).resolve().parent
+
+    return base_path / relative_path
 
 
 def add_shadow(widget: QWidget) -> None:
@@ -248,7 +265,13 @@ class MainWindow(QMainWindow):
         title_label = QLabel("地名翻译助手")
         title_label.setObjectName("headerLabel")
 
-        settings_btn = QPushButton("⚙️ 设置")
+        settings_btn = QPushButton()
+        # 设置图标images/gear.svg
+        gear_icon_path = str(get_resource_path("images/gear.svg"))
+        settings_btn.setIcon(QIcon(gear_icon_path))
+        settings_btn.setIconSize(QSize(22, 22))  # 调整图标大小，22左右通常比较合适
+        settings_btn.setToolTip("设置")  # 鼠标悬停时提示“设置”
+
         settings_btn.setObjectName("iconBtn")
         settings_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         settings_btn.clicked.connect(self.open_settings)
@@ -406,20 +429,28 @@ class MainWindow(QMainWindow):
 # 程序入口
 # -------------------------------
 if __name__ == "__main__":
+    # 解决 Windows 任务栏图标显示为 Python 默认图标的问题
+    if platform.system() == "Windows":
+        # 告诉 Windows 这个进程拥有独立的 AppUserModelID
+        my_app_id = "placename_translator.placename_translator.placename_translator.1_0"  # 随便填一个唯一字符串即可
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(my_app_id)
+
     app = QApplication(sys.argv)
 
     # 启用高DPI缩放支持
     app.setAttribute(Qt.ApplicationAttribute.AA_UseHighDpiPixmaps)
 
-    # 获取 main.py 所在的绝对路径，并加载同目录下的 style.qss
-    current_dir = Path(__file__).parent
-    qss_file = current_dir / "style.qss"
+    # 设置全局软件图标 (窗口左上角和任务栏都会生效)
+    app_icon_path = get_resource_path("images/icon.ico")
+    app.setWindowIcon(QIcon(str(app_icon_path)))
 
+    # 使用辅助函数加载 style.qss (保证打包后也能找到)
+    qss_file = get_resource_path("style.qss")
     if qss_file.exists():
         with open(qss_file, "r", encoding="utf-8") as f:
             app.setStyleSheet(f.read())
     else:
-        print(f"Warning: Stylesheet file '{qss_file}' not found. Using default styles.")
+        print(f"Warning: Stylesheet file '{qss_file}' not found.")
 
     window = MainWindow()
     window.show()
