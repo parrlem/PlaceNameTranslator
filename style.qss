@@ -1,0 +1,162 @@
+/* 基础背景与字体 */
+QWidget {
+    font-family: "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+    color: #333333;
+}
+
+QMainWindow {
+    background-color: #F5F7FA;
+}
+
+QDialog {
+    background-color: #FFFFFF;
+}
+
+/* 输入框 */
+QLineEdit {
+    border: 1px solid #DCDFE6;
+    border-radius: 6px;
+    padding: 8px 12px;
+    background-color: #FFFFFF;
+    font-size: 14px;
+    selection-background-color: #409EFF;
+}
+QLineEdit:focus {
+    border: 1.5px solid #409EFF;
+    outline: none;
+}
+QLineEdit:disabled {
+    background-color: #F5F7FA;
+    color: #909399;
+}
+
+/* 主要按钮 (翻译) */
+QPushButton#primaryBtn {
+    background-color: #409EFF;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 16px;
+    font-size: 14px;
+    font-weight: bold;
+}
+QPushButton#primaryBtn:hover {
+    background-color: #66B1FF;
+}
+QPushButton#primaryBtn:pressed {
+    background-color: #3A8EE6;
+}
+QPushButton#primaryBtn:disabled {
+    background-color: #A0CFFF;
+    color: #FFFFFF;
+}
+
+/* 次要按钮 / 设置按钮 */
+QPushButton#iconBtn {
+    background-color: transparent;
+    color: #606266;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 14px;
+}
+QPushButton#iconBtn:hover {
+    background-color: #EBEEF5;
+    color: #409EFF;
+}
+
+/* 列表框 */
+QListWidget {
+    border: 1px solid #DCDFE6;
+    border-radius: 8px;
+    background-color: #FFFFFF;
+    outline: none;
+    padding: 4px;
+}
+QListWidget::item {
+    padding: 12px;
+    border-radius: 6px;
+    margin-bottom: 2px;
+}
+QListWidget::item:hover {
+    background-color: #F2F8FE;
+    color: #409EFF;
+}
+QListWidget::item:selected {
+    background-color: #ECF5FF;
+    color: #409EFF;
+    font-weight: bold;
+}
+
+/* 标签 */
+QLabel#headerLabel {
+    font-size: 16px;
+    font-weight: bold;
+    color: #303133;
+}
+QLabel#statusLabel {
+    color: #909399;
+    font-size: 12px;
+}
+
+/* 下拉框与复选框 */
+QComboBox {
+    border: 1px solid #DCDFE6;
+    border-radius: 6px;
+    padding: 8px 12px;
+    background-color: #FFFFFF;
+    font-size: 14px;
+}
+/* 移除下拉框右侧默认的 3D 按钮背景和边框 */
+QComboBox::drop-down {
+    subcontrol-origin: padding;
+    subcontrol-position: top right;
+    width: 30px;            /* 给箭头留出足够的宽度 */
+    border-left: none;      /* 移除自带的左侧分割线 */
+    background: transparent;
+}
+
+/* 替换原生丑陋的黑色小三角，使用现代风格的灰色向下箭头 (内嵌 Base64 SVG) */
+QComboBox::down-arrow {
+    image: url(./images/angle-down.svg);
+    width: 16px;
+    height: 16px;
+}
+/* 展开下拉菜单时的箭头点击反馈效果 */
+QComboBox::down-arrow:on {
+    top: 1px;
+    left: 1px;
+}
+/* 点击后弹出的那个下拉列表 */
+QComboBox QAbstractItemView {
+    border: 1px solid #DCDFE6;
+    border-radius: 6px;
+    background-color: #FFFFFF;
+    outline: none;       /* 去掉选中时的虚线框 */
+}
+QComboBox QAbstractItemView::item {
+    height: 30px;        /* 列表项的高度 */
+    padding-left: 10px;
+}
+QComboBox QAbstractItemView::item:selected {
+    background-color: #F2F8FE;
+    color: #409EFF;
+}
+QCheckBox {
+    spacing: 8px;
+}
+QCheckBox::indicator {
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
+    border: 1px solid #DCDFE6;
+}
+QCheckBox::indicator:checked {
+    background-color: #409EFF;
+    border: 1px solid #409EFF;
+    image: url(./images/check.svg);
+}
+SettingsDialog QLabel {
+    min-height: 34px;
+    font-size: 14px;
+}
