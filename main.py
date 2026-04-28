@@ -121,7 +121,7 @@ class SettingsDialog(QDialog):
     ):
         super().__init__(parent)
         self.setWindowTitle("API 与输出设置")
-        self.resize(400, 270)
+        self.resize(400, 170)
 
         layout = QFormLayout(self)
 
