@@ -38,6 +38,7 @@ from PySide6.QtWidgets import (
     QGraphicsDropShadowEffect,
 )
 
+from custom_message_box import CustomMessageBox
 
 def get_resource_path(relative_path: str) -> Path:
     """
@@ -177,11 +178,20 @@ class SettingsDialog(QDialog):
         self.clear_btn.setObjectName("iconBtn")
         self.clear_btn.clicked.connect(self.clear_settings)
 
-        button_box = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
-        )
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.reject)
+        
+        # 强行修改文字为中文，并加上鼠标手型光标
+        ok_btn = button_box.button(QDialogButtonBox.StandardButton.Ok)
+        ok_btn.setText("确认")
+        ok_btn.setObjectName("primaryBtn")
+        ok_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+
+        cancel_btn = button_box.button(QDialogButtonBox.StandardButton.Cancel)
+        cancel_btn.setText("取消")
+        cancel_btn.setObjectName("iconBtn")
+        cancel_btn.setCursor(Qt.CursorShape.PointingHandCursor)
 
         # 应用样式到弹窗按钮
         button_box.button(QDialogButtonBox.StandardButton.Ok).setObjectName(
@@ -208,7 +218,8 @@ class SettingsDialog(QDialog):
         self.model_combo.setCurrentIndex(0)
         self.copy_dict_check.setChecked(False)
         self.auto_clipboard_check.setChecked(False)
-        QMessageBox.information(self, "提示", "所有设置已清除")
+
+        CustomMessageBox.success(self, "设置已清空", "所有本地设置已被成功清除！")
 
     def get_settings(self) -> tuple[str, str, bool, bool]:
         return (
@@ -230,6 +241,7 @@ class MainWindow(QMainWindow):
         self.resize(450, 400)
         self.setMinimumSize(350, 300)
 
+        self.is_always_on_top = False
         self.settings = QSettings("PlaceNameTranslator", "PlaceNameTranslator")
         self.api_key = str(self.settings.value("api_key", ""))
         self.model = str(self.settings.value("model", "deepseek-v4-pro"))
@@ -265,19 +277,27 @@ class MainWindow(QMainWindow):
         title_label = QLabel("地名翻译助手")
         title_label.setObjectName("headerLabel")
 
+        # --- 始终置顶按钮 ---
+        self.is_always_on_top = False  # 状态标志：默认不置顶
+        self.pin_btn = QPushButton()
+        self.pin_btn.setObjectName("iconBtn")
+        self.pin_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.pin_btn.clicked.connect(self.toggle_always_on_top)
+        self.update_pin_btn_ui()  # 调用辅助函数初始化图标和提示
+
+        # --- 设置按钮 ---
         settings_btn = QPushButton()
-        # 设置图标images/gear.svg
         gear_icon_path = str(get_resource_path("images/gear.svg"))
         settings_btn.setIcon(QIcon(gear_icon_path))
-        settings_btn.setIconSize(QSize(22, 22))  # 调整图标大小，22左右通常比较合适
-        settings_btn.setToolTip("设置")  # 鼠标悬停时提示“设置”
-
+        settings_btn.setIconSize(QSize(22, 22))
+        settings_btn.setToolTip("设置")
         settings_btn.setObjectName("iconBtn")
         settings_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         settings_btn.clicked.connect(self.open_settings)
 
         header_layout.addWidget(title_label)
         header_layout.addStretch()
+        header_layout.addWidget(self.pin_btn)  # 将置顶按钮加在设置按钮左边
         header_layout.addWidget(settings_btn)
         main_layout.addLayout(header_layout)
 
@@ -327,14 +347,54 @@ class MainWindow(QMainWindow):
         else:
             self.status_label.setStyleSheet("color: #909399;")
 
+    def update_pin_btn_ui(self) -> None:
+        """根据当前的置顶状态，更新按钮的图标和悬停提示"""
+        if self.is_always_on_top:
+            icon_path = str(get_resource_path("images/thumbtack.svg"))
+            self.pin_btn.setToolTip("取消置顶")
+        else:
+            icon_path = str(get_resource_path("images/thumbtack-slash.svg"))
+            self.pin_btn.setToolTip("始终置顶")
+
+        self.pin_btn.setIcon(QIcon(icon_path))
+        self.pin_btn.setIconSize(QSize(22, 22))
+
+    def toggle_always_on_top(self) -> None:
+        """切换窗口的始终置顶状态"""
+        self.is_always_on_top = not self.is_always_on_top
+
+        if platform.system() == "Windows":
+            # 在 Windows 下直接调用 Win32 API 切换层级，解决闪烁问题
+            # 将参数用 ctypes.c_void_p 包装，防止在 64 位 Windows 上被截断失效
+            hwnd = ctypes.c_void_p(int(self.winId()))
+
+            # HWND_TOPMOST = -1, HWND_NOTOPMOST = -2
+            insert_after = ctypes.c_void_p(-1 if self.is_always_on_top else -2)
+
+            # 标志位：SWP_NOSIZE (0x0001) | SWP_NOMOVE (0x0002) | SWP_NOACTIVATE (0x0010) = 0x0013
+            # 这告诉系统：不要改变窗口大小、不要改变窗口位置、不要抢占焦点
+            flags = 0x0013
+
+            ctypes.windll.user32.SetWindowPos(hwnd, insert_after, 0, 0, 0, 0, flags)
+
+        else:
+            # Mac/Linux 环境的兼容后备方案（还是会闪烁）
+            # 使用 Qt.WindowType.WindowStaysOnTopHint 修改置顶标志
+            self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, self.is_always_on_top)
+            # 在 Qt 中修改 WindowFlag 后，窗口会被系统隐藏，必须重新调用 show()
+            self.show()
+
+        # 更新 UI
+        self.update_pin_btn_ui()
+        state_text = "已开启始终置顶 📌" if self.is_always_on_top else "已取消始终置顶"
+        self.set_status(state_text, True)
+
     def open_settings(self) -> None:
-        dialog = SettingsDialog(
-            self.api_key, self.model, self.copy_as_dict, self.auto_read_clipboard, self
-        )
+        dialog = SettingsDialog(self.api_key, self.model, self.copy_as_dict, self.auto_read_clipboard, self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             new_key, new_model, new_copy, new_auto = dialog.get_settings()
             if not new_key:
-                QMessageBox.warning(self, "提示", "API Key 不能为空")
+                CustomMessageBox.warning(self, "提示", "API Key 不能为空")
                 return
 
             self.api_key = new_key
@@ -363,7 +423,7 @@ class MainWindow(QMainWindow):
             return
 
         if not self.api_key:
-            QMessageBox.warning(self, "提示", "请先在右上角“设置”中填写 API Key")
+            CustomMessageBox.warning(self, "提示", "请先在右上角“设置”中填写 API Key")
             return
 
         self.input_edit.setEnabled(False)
@@ -383,7 +443,7 @@ class MainWindow(QMainWindow):
         self.input_edit.setFocus()
 
         if isinstance(result, Exception):
-            QMessageBox.critical(self, "翻译失败", f"发生错误：{result}")
+            CustomMessageBox.critical(self, "翻译失败", f"发生错误：{result}")
             self.set_status(f"❌ 翻译失败: {result}")
         else:
             translations = cast(list[str], result)
@@ -436,9 +496,6 @@ if __name__ == "__main__":
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(my_app_id)
 
     app = QApplication(sys.argv)
-
-    # 启用高DPI缩放支持
-    app.setAttribute(Qt.ApplicationAttribute.AA_UseHighDpiPixmaps)
 
     # 设置全局软件图标 (窗口左上角和任务栏都会生效)
     app_icon_path = get_resource_path("images/icon.ico")
