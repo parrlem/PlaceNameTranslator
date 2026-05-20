@@ -2,6 +2,7 @@
 地名翻译助手 - 基于 DeepSeek API 的地名翻译工具
 严格遵循《地名管理条例实施办法》与《外语地名汉字译写导则 英语》
 """
+# pylint: disable=no-member
 
 import sys
 import json
