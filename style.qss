@@ -65,6 +65,20 @@ QPushButton#iconBtn:hover {
     color: #409EFF;
 }
 
+/* 次要文本按钮 (取消、清空等) */
+QPushButton#secondaryBtn {
+    background-color: transparent;
+    color: #606266;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    padding: 7px 15px; /* Adjust padding to exactly match primaryBtn's 8px 16px when accounting for 1px border */
+    font-size: 14px;
+}
+QPushButton#secondaryBtn:hover {
+    background-color: #EBEEF5;
+    color: #409EFF;
+}
+
 /* 列表框 */
 QListWidget {
     border: 1px solid #DCDFE6;

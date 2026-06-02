@@ -75,28 +75,48 @@ def add_shadow(widget: QWidget) -> None:
 class TranslationWorker(QThread):
     finished = Signal(object)
 
-    def __init__(self, text: str, api_key: str, model: str):
+    def __init__(self, text: str, api_key: str, model: str, proxy_url: str):
         super().__init__()
         self.text = text
         self.api_key = api_key
         self.model = model
+        self.proxy_url = proxy_url
 
     def run(self) -> None:
+        import socket
         try:
-            client = OpenAI(api_key=self.api_key, base_url="https://api.deepseek.com")
+            # 快速网络检测（超时设为 1.5 秒）
+            if self.proxy_url:
+                from urllib.parse import urlparse
+                parsed = urlparse(self.proxy_url)
+                host = parsed.hostname or "127.0.0.1"
+                port = parsed.port or (443 if parsed.scheme == "https" else 80)
+                socket.create_connection((host, port), timeout=1.5)
+            else:
+                socket.create_connection(("api.deepseek.com", 443), timeout=1.5)
+        except OSError:
+            self.finished.emit(ConnectionError("当前没有网络连接或代理服务器不可达，请检查设置后再试。"))
+            return
+
+        try:
+            import httpx
+            http_client = httpx.Client(proxy=self.proxy_url) if self.proxy_url else None
+            client = OpenAI(api_key=self.api_key, base_url="https://api.deepseek.com", http_client=http_client)
             system_prompt = """
             你是一位顶级的地名翻译专家，请严格遵循以下规范将用户输入的中文地名翻译成英文：
             1. 《地名管理条例实施办法》中关于地名罗马字母拼写和译写的规定。
             2. 《外语地名汉字译写导则 英语》（GB/T 17693.1-2008）的译写总则和细则。
+            3. 《中国地理实体通名汉语拼音字母拼写规则》（GB/T 38207-2019）。
             
-            你需要提供多个可能的翻译备选，例如：
-            - 标准汉语拼音（如 Beijing）。
+            你需要提供多个可能的翻译备选，请务必包含以下几项：
+            - 标准汉语拼音（无音调，如 Beijing）。
+            - 带音调的纯拼音转写（根据 GB/T 38207-2019，如 Běijīng）。
             - 历史或惯用的英文译名（如 Peking）。
             - 遵循导则的意译或音译，按照“专名”+“通名”的方式翻译（如 Yellow River）。
             
             你必须严格按照JSON格式输出，格式如下：
             {
-                "translations": ["备选1", "备选2", "备选3"]
+                "translations": ["备选1", "备选2", "备选3", "备选4"]
             }
             请确保输出是纯粹的 JSON 对象，不要包含任何其他说明文字。
             """
@@ -132,6 +152,7 @@ class SettingsDialog(QDialog):
         self,
         api_key: str,
         model: str,
+        proxy_url: str,
         copy_as_dict: bool,
         auto_read_clipboard: bool,
         parent: QWidget | None = None,
@@ -155,6 +176,10 @@ class SettingsDialog(QDialog):
         self.api_key_edit.setText(api_key)
         self.api_key_edit.setEchoMode(QLineEdit.EchoMode.Password)
 
+        self.proxy_edit = QLineEdit()
+        self.proxy_edit.setText(proxy_url)
+        self.proxy_edit.setPlaceholderText("留空则使用系统代理 (例: http://127.0.0.1:7890)")
+
         self.show_key_check = QCheckBox("显示 API Key")
         self.show_key_check.toggled.connect(self.toggle_api_key_visibility)
 
@@ -170,13 +195,14 @@ class SettingsDialog(QDialog):
 
         layout.addRow("模型名称", self.model_combo)
         layout.addRow("API Key", self.api_key_edit)
+        layout.addRow("代理服务器", self.proxy_edit)
         layout.addRow("", self.show_key_check)
         layout.addRow("", self.copy_dict_check)
         layout.addRow("", self.auto_clipboard_check)
 
         btn_layout = QHBoxLayout()
         self.clear_btn = QPushButton("清空设置")
-        self.clear_btn.setObjectName("iconBtn")
+        self.clear_btn.setObjectName("secondaryBtn")
         self.clear_btn.clicked.connect(self.clear_settings)
 
         button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
@@ -191,7 +217,7 @@ class SettingsDialog(QDialog):
 
         cancel_btn = button_box.button(QDialogButtonBox.StandardButton.Cancel)
         cancel_btn.setText("取消")
-        cancel_btn.setObjectName("iconBtn")
+        cancel_btn.setObjectName("secondaryBtn")
         cancel_btn.setCursor(Qt.CursorShape.PointingHandCursor)
 
         # 应用样式到弹窗按钮
@@ -199,7 +225,7 @@ class SettingsDialog(QDialog):
             "primaryBtn"
         )
         button_box.button(QDialogButtonBox.StandardButton.Cancel).setObjectName(
-            "iconBtn"
+            "secondaryBtn"
         )
 
         btn_layout.addWidget(self.clear_btn)
@@ -216,16 +242,18 @@ class SettingsDialog(QDialog):
         settings = QSettings("PlaceNameTranslator", "PlaceNameTranslator")
         settings.clear()
         self.api_key_edit.clear()
+        self.proxy_edit.clear()
         self.model_combo.setCurrentIndex(0)
         self.copy_dict_check.setChecked(False)
         self.auto_clipboard_check.setChecked(False)
 
         CustomMessageBox.success(self, "设置已清空", "所有本地设置已被成功清除！")
 
-    def get_settings(self) -> tuple[str, str, bool, bool]:
+    def get_settings(self) -> tuple[str, str, str, bool, bool]:
         return (
             self.api_key_edit.text().strip(),
             self.model_combo.currentText().strip(),
+            self.proxy_edit.text().strip(),
             self.copy_dict_check.isChecked(),
             self.auto_clipboard_check.isChecked(),
         )
@@ -246,6 +274,7 @@ class MainWindow(QMainWindow):
         self.settings = QSettings("PlaceNameTranslator", "PlaceNameTranslator")
         self.api_key = str(self.settings.value("api_key", ""))
         self.model = str(self.settings.value("model", "deepseek-v4-pro"))
+        self.proxy_url = str(self.settings.value("proxy_url", ""))
         self.copy_as_dict = bool(self.settings.value("copy_as_dict", False))
         self.auto_read_clipboard = bool(
             self.settings.value("auto_read_clipboard", False)
@@ -391,20 +420,22 @@ class MainWindow(QMainWindow):
         self.set_status(state_text, True)
 
     def open_settings(self) -> None:
-        dialog = SettingsDialog(self.api_key, self.model, self.copy_as_dict, self.auto_read_clipboard, self)
+        dialog = SettingsDialog(self.api_key, self.model, self.proxy_url, self.copy_as_dict, self.auto_read_clipboard, self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
-            new_key, new_model, new_copy, new_auto = dialog.get_settings()
+            new_key, new_model, new_proxy, new_copy, new_auto = dialog.get_settings()
             if not new_key:
                 CustomMessageBox.warning(self, "提示", "API Key 不能为空")
                 return
 
             self.api_key = new_key
             self.model = new_model
+            self.proxy_url = new_proxy
             self.copy_as_dict = new_copy
             self.auto_read_clipboard = new_auto
 
             self.settings.setValue("api_key", self.api_key)
             self.settings.setValue("model", self.model)
+            self.settings.setValue("proxy_url", self.proxy_url)
             self.settings.setValue("copy_as_dict", self.copy_as_dict)
             self.settings.setValue("auto_read_clipboard", self.auto_read_clipboard)
 
@@ -433,7 +464,7 @@ class MainWindow(QMainWindow):
         self.set_status("⏳ 正在请求 DeepSeek API，请稍候...")
         self.result_list.clear()
 
-        self.worker = TranslationWorker(text, self.api_key, self.model)
+        self.worker = TranslationWorker(text, self.api_key, self.model, self.proxy_url)
         self.worker.finished.connect(self.on_translation_finished)
         self.worker.start()
 
@@ -444,8 +475,12 @@ class MainWindow(QMainWindow):
         self.input_edit.setFocus()
 
         if isinstance(result, Exception):
-            CustomMessageBox.critical(self, "翻译失败", f"发生错误：{result}")
-            self.set_status(f"❌ 翻译失败: {result}")
+            if isinstance(result, ConnectionError):
+                CustomMessageBox.warning(self, "网络异常", str(result))
+                self.set_status("❌ 翻译失败: 无网络连接")
+            else:
+                CustomMessageBox.critical(self, "翻译失败", f"发生错误：{result}")
+                self.set_status(f"❌ 翻译失败: {result}")
         else:
             translations = cast(list[str], result)
             for text in translations:
